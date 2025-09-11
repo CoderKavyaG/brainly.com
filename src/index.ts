@@ -5,9 +5,11 @@ import { UserModel , ContentModel, LinkModel } from "./db.js";
 import { JWT_PASSWORD } from "./config.js";
 import { userMiddleware } from "./middlewere.js";
 import { random } from "./utils.js";
+import cors from "cors";
 
 const app = express();
 app.use(express.json());
+app.use(cors());
 
 app.post("/api/v1/signup", async (req, res) => {
     // zod validation , hash the password
@@ -54,22 +56,24 @@ app.post("/api/v1/signin", async (req, res) => {
     }
 })
 
-app.post("/api/v1/content",userMiddleware,async (req, res) => {
+app.post("/api/v1/content", userMiddleware, async (req, res) => {
+    const title = req.body.title;
     const link = req.body.link;
     const type = req.body.type;
 
     await ContentModel.create({
+        title,
         link,
         type,
         //@ts-ignore
-        userId:req.userId,
-        tags:[]
-    })
+        userId: req.userId,
+        tags: []
+    });
 
     res.json({
-        message:"content added"
-    })
-})
+        message: "content added"
+    });
+});
 
 app.get("/api/v1/content" , userMiddleware, async (req, res) => {
 
