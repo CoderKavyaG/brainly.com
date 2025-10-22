@@ -57,19 +57,17 @@ app.post("/api/v1/signin", async (req, res) => {
 })
 
 app.post("/api/v1/content", userMiddleware, async (req, res) => {
-    const title = req.body.title;
-    const link = req.body.link;
-    const type = req.body.type;
-
+    const { title, link, type, text, pin } = req.body;
     await ContentModel.create({
         title,
         link,
         type,
+        text,
+        pin: !!pin,
         //@ts-ignore
         userId: req.userId,
         tags: []
     });
-
     res.json({
         message: "content added"
     });
@@ -78,29 +76,41 @@ app.post("/api/v1/content", userMiddleware, async (req, res) => {
 app.get("/api/v1/content" , userMiddleware, async (req, res) => {
 
     //@ts-ignore
-    const userId = req.userId ;
+    const userId = req.userId;
+    // Show pinned notes first
     const content = await ContentModel.find({
-        userId:userId
-    }).populate("userId", "username")
-
-    res.json({
-        content
-    })
+        userId: userId
+    }).sort({ pin: -1, createdAt: -1 }).populate("userId", "username");
+    res.json({ content });
+// Pin or unpin a note
+app.put("/api/v1/content/:id/pin", userMiddleware, async (req, res) => {
+    const contentId = req.params.id;
+    const { pin } = req.body;
+    //@ts-ignore
+    const userId = req.userId;
+    const result = await ContentModel.updateOne({ _id: contentId, userId }, { $set: { pin: !!pin } });
+    if (result.modifiedCount === 1) {
+        res.json({ message: pin ? "Pinned" : "Unpinned" });
+    } else {
+        res.status(404).json({ message: "Content not found or not updated" });
+    }
+});
 })
 
-app.delete("/api/v1/content",userMiddleware, async (req, res) => {
-   const contentId = req.body.contentId;
-
-    await ContentModel.deleteMany({
-        contentId,
-        // @ts-ignore
-        userId: req.userId
-    })
-
-    res.json({
-        message: "Deleted"
-    })
-})
+app.delete("/api/v1/content/:id", userMiddleware, async (req, res) => {
+    const contentId = req.params.id;
+    //@ts-ignore
+    const userId = req.userId;
+    const result = await ContentModel.deleteOne({
+        _id: contentId,
+        userId: userId
+    });
+    if (result.deletedCount === 1) {
+        res.json({ message: "Deleted" });
+    } else {
+        res.status(404).json({ message: "Content not found or not deleted" });
+    }
+});
 
 app.post("/api/v1/brain/share",userMiddleware, async (req, res) => {
     const share = req.body.share;
