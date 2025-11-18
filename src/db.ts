@@ -35,7 +35,7 @@ const ContentSchema = new Schema({
   title: String,
   link: String,
   text: String,
-  tags: [{ type: mongoose.Types.ObjectId, ref: "Tag" }],
+  tags: [{ type: String }],
   type: String,
   createdAt: { type: Date, default: Date.now },
   pin: { type: Boolean, default: false },

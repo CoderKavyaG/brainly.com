@@ -57,20 +57,37 @@ app.post("/api/v1/signin", async (req, res) => {
 })
 
 app.post("/api/v1/content", userMiddleware, async (req, res) => {
-    const { title, link, type, text, pin } = req.body;
-    await ContentModel.create({
-        title,
-        link,
-        type,
-        text,
-        pin: !!pin,
-        //@ts-ignore
-        userId: req.userId,
-        tags: []
-    });
-    res.json({
-        message: "content added"
-    });
+    const { title, link, type, text, pin, tags } = req.body;
+    console.log("POST /api/v1/content - Received:", { title, link, type, text, pin, tags });
+    
+    try {
+        if (!title) {
+            return res.status(400).json({
+                message: "Title is required"
+            });
+        }
+
+        const content = await ContentModel.create({
+            title,
+            link,
+            type,
+            text,
+            pin: !!pin,
+            //@ts-ignore
+            userId: req.userId,
+            tags: tags && Array.isArray(tags) ? tags : []
+        });
+        console.log("Content created successfully:", content);
+        res.json({
+            message: "content added",
+            content
+        });
+    } catch (error) {
+        console.error("Error creating content:", error);
+        res.status(500).json({
+            message: "Error creating content"
+        });
+    }
 });
 
 app.get("/api/v1/content" , userMiddleware, async (req, res) => {
@@ -82,6 +99,27 @@ app.get("/api/v1/content" , userMiddleware, async (req, res) => {
         userId: userId
     }).sort({ pin: -1, createdAt: -1 }).populate("userId", "username");
     res.json({ content });
+});
+
+// Get all unique tags for a user
+app.get("/api/v1/tags", userMiddleware, async (req, res) => {
+    //@ts-ignore
+    const userId = req.userId;
+    const content = await ContentModel.find({
+        userId: userId
+    });
+    
+    const tagsSet = new Set<string>();
+    content.forEach((item: any) => {
+        if (item.tags && Array.isArray(item.tags)) {
+            item.tags.forEach((tag: string) => tagsSet.add(tag));
+        }
+    });
+    
+    const tags = Array.from(tagsSet).sort();
+    res.json({ tags });
+});
+
 // Pin or unpin a note
 app.put("/api/v1/content/:id/pin", userMiddleware, async (req, res) => {
     const contentId = req.params.id;
@@ -95,7 +133,6 @@ app.put("/api/v1/content/:id/pin", userMiddleware, async (req, res) => {
         res.status(404).json({ message: "Content not found or not updated" });
     }
 });
-})
 
 app.delete("/api/v1/content/:id", userMiddleware, async (req, res) => {
     const contentId = req.params.id;
@@ -114,6 +151,8 @@ app.delete("/api/v1/content/:id", userMiddleware, async (req, res) => {
 
 app.post("/api/v1/brain/share",userMiddleware, async (req, res) => {
     const share = req.body.share;
+    console.log("POST /api/v1/brain/share - share:", share, "userId:", (req as any).userId);
+    
     if(share){
 
         const existingLink = await LinkModel.findOne({
@@ -122,12 +161,14 @@ app.post("/api/v1/brain/share",userMiddleware, async (req, res) => {
         });
 
         if(existingLink){
+            console.log("Using existing link:", existingLink.hash);
             res.json({
                 hash: existingLink.hash
             })
             return;
         }
         const hash = random(10);
+        console.log("Creating new link with hash:", hash);
         await LinkModel.create({
             // @ts-ignore
             userId: req.userId,
@@ -135,7 +176,7 @@ app.post("/api/v1/brain/share",userMiddleware, async (req, res) => {
         })
 
         res.json({
-            message: "/share/" + hash
+            hash: hash
         })
     } else {
         await LinkModel.deleteOne({
@@ -147,8 +188,6 @@ app.post("/api/v1/brain/share",userMiddleware, async (req, res) => {
             message: "deleted link"
         })
     }
-
-
 })
 
 app.get("/api/v1/brain/:shareLink", async (req, res) => {
